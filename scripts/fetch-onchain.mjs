@@ -9,11 +9,12 @@ import { fileURLToPath } from "node:url";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = resolve(ROOT, "data", "btc-onchain.json");
 
-// 대시보드 지표 id → [API 엔드포인트, 응답 JSON 필드명]
+// 대시보드 지표 id → [API 엔드포인트, 응답 JSON 필드, 배율]
+// 배율: bitcoin-data 단위 → 대시보드 단위 (NUPL은 비율 0~1 → %)
 const ONCHAIN = [
-  ["mvrv", "mvrv-zscore", "mvrvZscore"],
-  ["nupl", "nupl", "nupl"],
-  ["puell", "puell-multiple", "puellMultiple"],
+  ["mvrv", "mvrv-zscore", "mvrvZscore", 1],
+  ["nupl", "nupl", "nupl", 100],
+  ["puell", "puell-multiple", "puellMultiple", 1],
 ];
 
 let existing = { metrics: {} };
@@ -23,7 +24,7 @@ try {
 const metrics = { ...(existing.metrics || {}) };
 
 // 1) 온체인 (bitcoin-data.com)
-for (const [id, ep, field] of ONCHAIN) {
+for (const [id, ep, field, scale] of ONCHAIN) {
   try {
     const r = await fetch(`https://bitcoin-data.com/v1/${ep}/last`, {
       headers: { "User-Agent": "Mozilla/5.0", accept: "application/json" },
@@ -32,7 +33,7 @@ for (const [id, ep, field] of ONCHAIN) {
     const j = await r.json();
     const v = j[field];
     if (typeof v !== "number") throw new Error("값 없음");
-    metrics[id] = { value: Number(v.toFixed(4)), date: j.d };
+    metrics[id] = { value: Number((v * scale).toFixed(4)), date: j.d };
     console.log(`[onchain] ${id} = ${metrics[id].value} (${j.d})`);
   } catch (e) {
     console.error(`[onchain] ${id} 실패: ${e.message} — 기존값 유지`);
@@ -65,6 +66,21 @@ if (fredKey) {
   console.log("[onchain] FRED_API_KEY 없음 — M2 건너뜀");
 }
 
+// 3) BTC 가격 (Binance, 키 불필요·한도 없음)
+let btc = existing.btc || null;
+try {
+  const r = await fetch("https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT");
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  const j = await r.json();
+  btc = {
+    price: Math.round(parseFloat(j.lastPrice)),
+    changePct: Number(parseFloat(j.priceChangePercent).toFixed(2)),
+  };
+  console.log(`[onchain] BTC = $${btc.price} (24h ${btc.changePct}%)`);
+} catch (e) {
+  console.error(`[onchain] BTC 가격 실패: ${e.message} — 기존값 유지`);
+}
+
 await mkdir(resolve(ROOT, "data"), { recursive: true });
-await writeFile(OUT, JSON.stringify({ updated: new Date().toISOString(), metrics }, null, 2), "utf8");
+await writeFile(OUT, JSON.stringify({ updated: new Date().toISOString(), metrics, btc }, null, 2), "utf8");
 console.log("[onchain] data/btc-onchain.json 저장");
