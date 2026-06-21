@@ -1,6 +1,9 @@
 node_modules/
 .env
 
+# 내부 핸드오프 문서(키 위치·내부 메모 포함) — 공개 저장소에 안 올림. 로컬 전용.
+PROJECT.md
+
 # 네이버 복붙용 텍스트/HTML과 차트 이미지는 메일로만 전달(비공개) — 공개 사이트엔 안 올림
 posts/*-naver.html
 posts/*-naver.txt
