@@ -36,6 +36,7 @@ jobs:
 
       - name: 네이버 복붙용 시황 이메일 발송 (Resend)
         if: ${{ success() }}
+        continue-on-error: true # 메일 실패해도 데이터·글 커밋은 진행
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.resend.com
