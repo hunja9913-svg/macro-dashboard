@@ -1,16 +1,19 @@
 {
-  "updated": "2026-06-21T17:41:23.191Z",
+  "updated": "2026-06-21T17:44:03.876Z",
   "metrics": {
     "mvrv": {
       "value": 0.3536,
+      "changePct": 6.19,
       "date": "2026-06-20"
     },
     "nupl": {
       "value": 17.64,
+      "changePct": 5.69,
       "date": "2026-06-20"
     },
     "puell": {
       "value": 0.7447,
+      "changePct": 4.1,
       "date": "2026-06-20"
     },
     "m2": {
