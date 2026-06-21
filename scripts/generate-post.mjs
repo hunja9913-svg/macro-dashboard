@@ -199,6 +199,25 @@ const naverTxt = [
 ].join("\n");
 await writeFile(resolve(ROOT, "posts", `${dateId}-naver.txt`), naverTxt, "utf8");
 
+// 네이버 복붙용 "서식 페이지" — 브라우저에서 열어 전체 복사→붙여넣기 하면 굵게/제목/목록 유지됨.
+// (네이버는 HTML 소스 입력은 안 되지만, 렌더된 서식 복사는 보존됨. 배경색·커스텀 스타일은 제거되므로 의미태그 위주.)
+const naverBody = bodyHtml.replace(/<p><strong>((?:📈|₿)[^<]*)<\/strong><\/p>/g, "<h3>$1</h3>");
+const naverHtml = `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
+<title>${title} — 네이버 복붙용</title>
+<style>body{font-family:"Malgun Gothic",sans-serif;max-width:680px;margin:24px auto;padding:0 16px;line-height:1.85;font-size:16px;color:#222}
+h2{font-size:21px;line-height:1.4} h3{font-size:17px;margin:22px 0 6px} ul{margin:8px 0;padding-left:20px} li{margin:4px 0} .tip{color:#999;font-size:13px;border-top:1px solid #eee;margin-top:24px;padding-top:12px}</style>
+</head><body>
+<p style="background:#fffbe6;padding:8px 12px;border-radius:6px;color:#a67c00;font-size:13px">📋 이 페이지에서 <b>전체 선택(Ctrl+A) → 복사(Ctrl+C)</b> 후 네이버 글쓰기에 <b>붙여넣기</b>하면 서식이 유지됩니다. 그다음 같은 폴더의 <b>${dateId}.png</b> 이미지를 첨부하세요.</p>
+<h2>${title}</h2>
+<p><strong>💡 ${tldr}</strong></p>
+<h3>한눈에</h3>
+<ul>${points.map((p) => `<li>${p}</li>`).join("")}</ul>
+${naverBody}
+<p>※ 지표 상세 수치는 첨부 이미지 참고.</p>
+<p class="tip">위 안내 문구는 복사 전 지우거나, 복사 후 네이버에서 삭제하세요.</p>
+</body></html>`;
+await writeFile(resolve(ROOT, "posts", `${dateId}-naver.html`), naverHtml, "utf8");
+
 // 글 목록 매니페스트(posts.json) 갱신 → index.html 재생성
 const manifestPath = resolve(ROOT, "posts", "posts.json");
 let manifest = [];
