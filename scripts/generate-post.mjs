@@ -32,27 +32,25 @@ const lines = macro.indicators
   .join("\n");
 
 const system = [
-  "너는 한국 개인 투자자를 위한 매크로 시황 블로그 필자다.",
-  "주어진 '지표 데이터(당일·주간·월간 변화 포함)'만 근거로 작성한다. 데이터에 없는 수치를 지어내지 마라.",
-  "중요: 시장이 움직인 '원인·이유(뉴스/이벤트)'를 추측하지 마라. 너는 뉴스를 모른다. 오직 데이터가 보여주는 '추세 흐름'만 해석한다.",
-  "추세 분석 = 주간·월간 방향(상승/하락/횡보)과 강도, 당일 움직임이 추세와 같은지 다른지(숨고르기/전환 조짐), 지표 간 동조/괴리.",
-  "특정 종목 매수/매도를 권유하지 않는다. 투자 판단은 독자 몫임을 글 말미에 한 줄로 명시한다.",
-  "과장·단정 금지. '~로 보인다, ~흐름, ~가능성' 등 신중한 표현. 분량은 한국어 600~900자.",
+  "너는 한국 개인 투자자를 위한 매크로 시황 블로그 필자다. 목표는 독자가 '3초 안에 핵심을 잡게' 하는 것.",
+  "주어진 '지표 데이터(당일·주간·월간 변화)'만 근거로 쓴다. 데이터에 없는 수치를 지어내지 마라.",
+  "시장이 움직인 '원인·이유(뉴스/이벤트)'는 추측 금지(뉴스 모름). 데이터가 보여주는 '추세 흐름'만 해석한다.",
+  "절대 금지: 모든 지표를 똑같이 나열하는 교과서식 요약. '전반적으로 ~한 환경', '주시할 필요가 있다' 같은 뻔하고 맹탕인 마무리.",
+  "대신: 오늘 데이터에서 가장 눈에 띄는/특이한 1~2가지(강한 동조 또는 괴리)를 콕 집어 직설적으로. 나머지 지표는 과감히 생략.",
+  "추세 분석 = 주간·월간 방향과 강도, 당일이 추세와 같은지/되돌림인지, 지표 간 동조 vs 괴리.",
+  "투자 판단은 독자 몫임을 말미에 한 줄 명시. 매수/매도 권유 금지.",
 ].join(" ");
 
 const prompt = `오늘은 ${dateKr}.
-아래는 자동 수집된 주요 매크로 지표와 당일·주간·월간 변화, 국면 판정이다.
-
 [지표 데이터]
 ${lines}
 
-위 데이터를 종합해 '오늘의 매크로 추세 시황' 블로그 글을 작성하라.
-- 각 지표의 주간·월간 추세 방향과 강도를 읽고, 당일 움직임이 그 추세와 같은 방향인지/되돌림인지 해석.
-- 위험자산(나스닥·S&P·코스피)과 매크로(달러·금리·VIX)의 추세가 서로 동조하는지 괴리하는지 짚을 것.
-- 원인·이유는 쓰지 말고, "데이터상 추세는 ~로 보인다" 식의 흐름 해석에 집중.
-- 다음 JSON 형식으로만 응답: {"title": "...", "html": "..."}
-  - title: 날짜와 핵심을 담은 매력적인 한글 제목 (예: "${dateKr} 매크로: 나스닥 강세 속 강달러, 위험자산 우호?")
-  - html: <p>, <ul>, <li>, <strong> 정도만 쓴 본문 HTML (스크립트/스타일 금지).`;
+위 데이터로 '오늘의 매크로' 글을 작성하라. 짧고 핵심만. 다음 JSON으로만 응답:
+{"title":"...","tldr":"...","points":["...","...","..."],"html":"..."}
+- title: 오늘의 핵심을 담은 직설적 제목 (예: "위험자산 강세인데 달러도 강세 — 엇갈리는 신호")
+- tldr: 오늘 시황을 한 문장으로. 가장 중요한 포인트 하나만, 임팩트 있게.
+- points: '한눈에' 3개. 각 15자 내외의 짧은 핵심 (예: "나스닥 주간 +2.7%, 추세 상승")
+- html: 2~3문단(총 300~450자)의 짧은 해설. 가장 눈에 띄는 1~2가지에만 집중. <p><strong>만 사용. 지표 나열·뻔한 마무리 금지.`;
 
 const ai = new GoogleGenAI({ apiKey });
 const res = await ai.models.generateContent({
@@ -65,12 +63,14 @@ const res = await ai.models.generateContent({
   },
 });
 
-let title, bodyHtml;
+let title, tldr, points, bodyHtml;
 try {
   const parsed = JSON.parse(res.text);
   title = parsed.title;
+  tldr = parsed.tldr;
+  points = Array.isArray(parsed.points) ? parsed.points : [];
   bodyHtml = parsed.html;
-  if (!title || !bodyHtml) throw new Error("title/html 누락");
+  if (!title || !tldr || !bodyHtml) throw new Error("필드 누락");
 } catch (e) {
   console.error("[post] Gemini 응답 파싱 실패:", e.message);
   console.error(res.text?.slice(0, 500));
@@ -96,10 +96,15 @@ const postHtml = `<!DOCTYPE html>
  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px}
  th,td{border:1px solid #ddd;padding:6px 8px;text-align:left} th{background:#f5f5f5}
  .disc{margin-top:28px;font-size:12px;color:#999;border-top:1px solid #eee;padding-top:12px}
+ .tldr{background:#fff8e1;border-left:4px solid #ffb300;padding:14px 16px;border-radius:8px;margin:14px 0;font-size:16px;font-weight:700;line-height:1.5}
+ .glance{background:#f5f7fa;border-radius:8px;padding:12px 16px;margin:14px 0}
+ .glance b{font-size:13px;color:#555} .glance ul{margin:6px 0 0;padding-left:18px} .glance li{margin:3px 0}
  a{color:#2a6}
 </style></head><body>
 <p class="date">${dateKr} · 오늘의 매크로</p>
 <h1>${title}</h1>
+<div class="tldr">💡 ${tldr}</div>
+<div class="glance"><b>한눈에</b><ul>${points.map((p) => `<li>${p}</li>`).join("")}</ul></div>
 <table><thead><tr><th>지표</th><th>값</th><th>등락</th><th>국면</th></tr></thead><tbody>${tableRows}</tbody></table>
 ${bodyHtml}
 <p class="disc">본 글은 자동 수집 데이터 기반 정보 제공이며, 특정 종목의 매수·매도 권유가 아닙니다. 투자 판단과 책임은 본인에게 있습니다. 데이터 출처: Yahoo Finance.</p>
