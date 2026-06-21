@@ -35,14 +35,16 @@ const lines = macro.indicators
 const zoneMvrv = (v) => (v < 0 ? "저평가/바닥권" : v < 2 ? "회복/매집 구간" : v < 5 ? "강세" : v < 7 ? "과열 주의" : "고점권/과열");
 const zoneNupl = (v) => (v < 0 ? "항복(바닥)" : v < 25 ? "희망/공포" : v < 50 ? "낙관/불안" : v < 75 ? "신뢰/안도" : "행복/탐욕(고점권)");
 const zonePuell = (v) => (v < 0.5 ? "채굴자 항복(바닥권)" : v < 1.2 ? "저평가/회복" : v < 2.5 ? "정상" : v < 4 ? "과열 경계" : "천장권/과열");
+const zoneM2 = (v) => (v < 0 ? "유동성 긴축" : v < 5 ? "완만한 확장" : "유동성 확장");
 
 // 비트코인 데이터(가격 + 온체인 사이클) — btc-onchain.json
 let btcLines = "(비트코인 데이터 없음)";
+let btcData = null;
 try {
-  const oc = JSON.parse(await readFile(resolve(ROOT, "data", "btc-onchain.json"), "utf8"));
-  const m = oc.metrics || {};
+  btcData = JSON.parse(await readFile(resolve(ROOT, "data", "btc-onchain.json"), "utf8"));
+  const m = btcData.metrics || {};
   const c = [];
-  if (oc.btc) c.push(`- BTC 가격: $${oc.btc.price.toLocaleString()} (24h ${oc.btc.changePct >= 0 ? "+" : ""}${oc.btc.changePct}%)`);
+  if (btcData.btc) c.push(`- BTC 가격: $${btcData.btc.price.toLocaleString()} (24h ${btcData.btc.changePct >= 0 ? "+" : ""}${btcData.btc.changePct}%)`);
   if (m.mvrv) c.push(`- MVRV Z-Score: ${m.mvrv.value} → 사이클: ${zoneMvrv(m.mvrv.value)}`);
   if (m.nupl) c.push(`- NUPL: ${m.nupl.value}% → 심리: ${zoneNupl(m.nupl.value)}`);
   if (m.puell) c.push(`- Puell Multiple: ${m.puell.value} → ${zonePuell(m.puell.value)}`);
@@ -99,14 +101,30 @@ try {
   process.exit(1);
 }
 
-// 지표 요약 표 (글 상단에 데이터 출처로 첨부)
-const tableRows = macro.indicators
+// 지표 요약 표 (주식·매크로 + 비트코인)
+const fmtNum = (n) => Number(n).toLocaleString("en-US", { maximumFractionDigits: 2 });
+const macroRows = macro.indicators
   .filter((i) => i.ok)
   .map(
     (i) =>
-      `<tr><td>${i.name}</td><td>${i.price}</td><td>${i.changePct >= 0 ? "+" : ""}${i.changePct}%</td><td>${i.zone}</td></tr>`
+      `<tr><td>${i.name}</td><td>${fmtNum(i.price)}</td><td>${i.changePct >= 0 ? "+" : ""}${i.changePct}%</td><td>${i.zone}</td></tr>`
   )
   .join("");
+
+let btcRows = "";
+if (btcData) {
+  const m = btcData.metrics || {};
+  const r = [];
+  if (btcData.btc)
+    r.push(`<tr><td>비트코인 가격</td><td>$${fmtNum(btcData.btc.price)}</td><td>${btcData.btc.changePct >= 0 ? "+" : ""}${btcData.btc.changePct}%</td><td>-</td></tr>`);
+  if (m.mvrv) r.push(`<tr><td>MVRV Z-Score</td><td>${m.mvrv.value}</td><td>-</td><td>${zoneMvrv(m.mvrv.value)}</td></tr>`);
+  if (m.nupl) r.push(`<tr><td>NUPL</td><td>${m.nupl.value}%</td><td>-</td><td>${zoneNupl(m.nupl.value)}</td></tr>`);
+  if (m.puell) r.push(`<tr><td>Puell Multiple</td><td>${m.puell.value}</td><td>-</td><td>${zonePuell(m.puell.value)}</td></tr>`);
+  if (m.m2) r.push(`<tr><td>미국 M2 (YoY)</td><td>${m.m2.value}%</td><td>-</td><td>${zoneM2(m.m2.value)}</td></tr>`);
+  if (r.length)
+    btcRows = `<tr><td colspan="4" style="background:#eef2f7;font-weight:600">₿ 비트코인 · 온체인</td></tr>` + r.join("");
+}
+const tableRows = macroRows + btcRows;
 
 const postHtml = `<!DOCTYPE html>
 <html lang="ko"><head>
