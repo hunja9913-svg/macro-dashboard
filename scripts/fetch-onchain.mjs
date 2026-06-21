@@ -38,9 +38,10 @@ for (const [id, ep, field, scale] of ONCHAIN) {
     if (typeof last[field] !== "number") throw new Error("값 없음");
     const v = last[field] * scale;
     const pv = prev[field] * scale;
-    const changePct = pv ? Number((((v - pv) / Math.abs(pv)) * 100).toFixed(2)) : null;
-    metrics[id] = { value: Number(v.toFixed(4)), changePct, date: last.d };
-    console.log(`[onchain] ${id} = ${metrics[id].value} (전일 ${changePct ?? "-"}%) ${last.d}`);
+    // 전일 대비 절대 변화(Δ). %는 저베이스(예: MVRV 0.35)에서 과장돼 보여 부적합.
+    const change = pv != null ? Number((v - pv).toFixed(4)) : null;
+    metrics[id] = { value: Number(v.toFixed(4)), change, date: last.d };
+    console.log(`[onchain] ${id} = ${metrics[id].value} (전일 Δ${change ?? "-"}) ${last.d}`);
   } catch (e) {
     console.error(`[onchain] ${id} 실패: ${e.message} — 기존값 유지`);
   }

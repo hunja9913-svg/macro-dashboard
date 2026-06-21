@@ -117,11 +117,15 @@ if (btcData) {
   const r = [];
   if (btcData.btc)
     r.push(`<tr><td>비트코인 가격</td><td>$${fmtNum(btcData.btc.price)}</td><td>${btcData.btc.changePct >= 0 ? "+" : ""}${btcData.btc.changePct}%</td><td>-</td></tr>`);
-  const chg = (v) => (v == null ? "-" : `${v >= 0 ? "+" : ""}${v}%`);
-  if (m.mvrv) r.push(`<tr><td>MVRV Z-Score</td><td>${m.mvrv.value}</td><td>${chg(m.mvrv.changePct)}</td><td>${zoneMvrv(m.mvrv.value)}</td></tr>`);
-  if (m.nupl) r.push(`<tr><td>NUPL</td><td>${m.nupl.value}%</td><td>${chg(m.nupl.changePct)}</td><td>${zoneNupl(m.nupl.value)}</td></tr>`);
-  if (m.puell) r.push(`<tr><td>Puell Multiple</td><td>${m.puell.value}</td><td>${chg(m.puell.changePct)}</td><td>${zonePuell(m.puell.value)}</td></tr>`);
-  if (m.m2) r.push(`<tr><td>미국 M2 (YoY)</td><td>${m.m2.value}%</td><td>-</td><td>${zoneM2(m.m2.value)}</td></tr>`);
+  // 온체인 등락 = 전일 대비 절대 변화(Δ). %는 저베이스에서 과장돼 보여 사용 안 함.
+  const dlt = (v, suffix = "") => (v == null ? "-" : `Δ${v >= 0 ? "+" : ""}${v}${suffix}`);
+  if (m.mvrv) r.push(`<tr><td>MVRV Z-Score</td><td>${m.mvrv.value}</td><td>${dlt(m.mvrv.change)}</td><td>${zoneMvrv(m.mvrv.value)}</td></tr>`);
+  if (m.nupl) r.push(`<tr><td>NUPL</td><td>${m.nupl.value}%</td><td>${dlt(m.nupl.change, "%p")}</td><td>${zoneNupl(m.nupl.value)}</td></tr>`);
+  if (m.puell) r.push(`<tr><td>Puell Multiple</td><td>${m.puell.value}</td><td>${dlt(m.puell.change)}</td><td>${zonePuell(m.puell.value)}</td></tr>`);
+  if (m.m2) {
+    const mo = m.m2.date ? parseInt(m.m2.date.slice(5, 7), 10) + "월 기준" : "";
+    r.push(`<tr><td>미국 M2 (YoY)</td><td>${m.m2.value}% <span style="color:#999;font-size:11px">${mo}</span></td><td>-</td><td>${zoneM2(m.m2.value)}</td></tr>`);
+  }
   if (r.length)
     btcRows = `<tr><td colspan="4" style="background:#eef2f7;font-weight:600">₿ 비트코인 · 온체인</td></tr>` + r.join("");
 }
