@@ -541,6 +541,26 @@ $('onchain').innerHTML = METRICS.map(renderMetricCard).join('');
 $('macro').innerHTML = MACRO.map(renderMetricCard).join('');
 [...METRICS, ...MACRO].forEach(wireMetric);
 
+/* 온체인 자동 채우기 — bitcoin-data.com 무료 API를 매일 서버가 수집해 둔 btc-onchain.json 사용.
+   MVRV·NUPL·Puell 3개는 자동, 나머지(LTH·STH·M2·ETF)는 무료 소스 없어 수동 입력 유지. */
+(async () => {
+  try {
+    const r = await fetch('data/btc-onchain.json');
+    if (!r.ok) return;
+    const oc = await r.json();
+    for (const id of ['mvrv', 'nupl', 'puell']) { // 대시보드 id == json 키
+      const m = oc.metrics && oc.metrics[id];
+      const inp = $('in-' + id);
+      if (m && inp) {
+        inp.value = m.value;
+        inp.title = '자동 수집: ' + m.date;
+        const btn = document.querySelector(`button[data-mid="${id}"]`);
+        if (btn) btn.click(); // 국면 분류 자동 실행
+      }
+    }
+  } catch (e) { /* 실패 시 수동 입력 유지 */ }
+})();
+
 $('copy').addEventListener('click', async ()=>{
   const btn = $('copy'); const ta = $('report');
   refreshReport();

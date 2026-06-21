@@ -6,8 +6,9 @@
   "description": "BTC + 매크로 지수 대시보드 + 매일 자동 발행되는 AI 매크로 요약 (Gemini)",
   "scripts": {
     "fetch": "node scripts/fetch.mjs",
+    "onchain": "node scripts/fetch-onchain.mjs",
     "post": "node scripts/generate-post.mjs",
-    "daily": "node scripts/fetch.mjs && node scripts/generate-post.mjs"
+    "daily": "node scripts/fetch.mjs && node scripts/fetch-onchain.mjs && node scripts/generate-post.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.30.0"
