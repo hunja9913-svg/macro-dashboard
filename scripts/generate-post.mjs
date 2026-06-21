@@ -77,7 +77,26 @@ ${btcLines}
 - html: 두 미니 섹션으로. (1) "<strong>📈 주식·매크로</strong>" 가장 눈에 띄는 1~2개. (2) "<strong>₿ 비트코인</strong>" 가격 흐름 + 온체인 사이클 위치(MVRV·NUPL·Puell가 저평가/회복/과열 중 어디인지) 명시. 각 섹션 2~3문장. <p><strong>만 사용. 지표 나열·뻔한 마무리 금지.`;
 
 const ai = new GoogleGenAI({ apiKey });
-const res = await ai.models.generateContent({
+
+// 무료 Flash 모델은 503(과부하)/429가 종종 발생 → 지수 백오프 재시도
+async function generateWithRetry(params, tries = 5) {
+  for (let i = 0; i < tries; i++) {
+    try {
+      return await ai.models.generateContent(params);
+    } catch (e) {
+      const status = e?.status;
+      if ([429, 500, 503].includes(status) && i < tries - 1) {
+        const wait = 8000 * (i + 1);
+        console.error(`[post] Gemini ${status} — ${wait / 1000}s 후 재시도 (${i + 1}/${tries})`);
+        await new Promise((r) => setTimeout(r, wait));
+        continue;
+      }
+      throw e;
+    }
+  }
+}
+
+const res = await generateWithRetry({
   model: MODEL,
   contents: prompt,
   config: {
@@ -158,6 +177,27 @@ ${bodyHtml}
 
 await mkdir(resolve(ROOT, "posts"), { recursive: true });
 await writeFile(resolve(ROOT, "posts", `${dateId}.html`), postHtml, "utf8");
+
+// 네이버 등 외부 블로그 복붙용 순수 텍스트 (서식 안 깨지게)
+const bodyText = bodyHtml
+  .replace(/<\/p>/g, "\n\n")
+  .replace(/<\/?strong>/g, "")
+  .replace(/<[^>]+>/g, "")
+  .replace(/\n{3,}/g, "\n\n")
+  .trim();
+const naverTxt = [
+  title,
+  "",
+  `💡 ${tldr}`,
+  "",
+  "[한눈에]",
+  ...points.map((p) => `· ${p}`),
+  "",
+  bodyText,
+  "",
+  "※ 지표 상세 수치는 첨부 이미지 참고.",
+].join("\n");
+await writeFile(resolve(ROOT, "posts", `${dateId}-naver.txt`), naverTxt, "utf8");
 
 // 글 목록 매니페스트(posts.json) 갱신 → index.html 재생성
 const manifestPath = resolve(ROOT, "posts", "posts.json");

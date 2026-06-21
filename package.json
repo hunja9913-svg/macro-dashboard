@@ -8,9 +8,11 @@
     "fetch": "node scripts/fetch.mjs",
     "onchain": "node scripts/fetch-onchain.mjs",
     "post": "node scripts/generate-post.mjs",
-    "daily": "node scripts/fetch.mjs && node scripts/fetch-onchain.mjs && node scripts/generate-post.mjs"
+    "image": "node scripts/make-image.mjs",
+    "daily": "node scripts/fetch.mjs && node scripts/fetch-onchain.mjs && node scripts/generate-post.mjs && node scripts/make-image.mjs"
   },
   "dependencies": {
-    "@google/genai": "^1.30.0"
+    "@google/genai": "^1.30.0",
+    "@napi-rs/canvas": "^0.1.65"
   }
 }
