@@ -548,7 +548,7 @@ $('macro').innerHTML = MACRO.map(renderMetricCard).join('');
     const r = await fetch('data/btc-onchain.json');
     if (!r.ok) return;
     const oc = await r.json();
-    for (const id of ['mvrv', 'nupl', 'puell']) { // 대시보드 id == json 키
+    for (const id of ['mvrv', 'nupl', 'puell', 'm2']) { // 대시보드 id == json 키
       const m = oc.metrics && oc.metrics[id];
       const inp = $('in-' + id);
       if (m && inp) {

@@ -1,6 +1,7 @@
-// BTC 온체인 지표 수집 → data/btc-onchain.json
-// 무료 소스: bitcoin-data.com (키 불필요, 시간당 10회 제한 → 하루 1번 3회 호출이라 안전).
-// 실패(429/404) 시 기존값을 유지해 대시보드가 빈칸이 되지 않게 한다.
+// BTC 온체인 + M2 수집 → data/btc-onchain.json
+// 온체인(MVRV·NUPL·Puell): bitcoin-data.com 무료 API (키 불필요, 10회/시간 제한).
+// M2: FRED 무료 API (FRED_API_KEY 필요). 미국 M2(M2SL) YoY 증가율 = 글로벌 유동성 대용.
+// 어느 소스든 실패 시 기존값 유지(폴백)해 대시보드가 빈칸이 되지 않게 한다.
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,21 +10,20 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = resolve(ROOT, "data", "btc-onchain.json");
 
 // 대시보드 지표 id → [API 엔드포인트, 응답 JSON 필드명]
-const METRICS = [
+const ONCHAIN = [
   ["mvrv", "mvrv-zscore", "mvrvZscore"],
   ["nupl", "nupl", "nupl"],
   ["puell", "puell-multiple", "puellMultiple"],
 ];
 
-// 기존 파일 로드(실패 시 폴백용)
 let existing = { metrics: {} };
 try {
   existing = JSON.parse(await readFile(OUT, "utf8"));
 } catch {}
-
 const metrics = { ...(existing.metrics || {}) };
 
-for (const [id, ep, field] of METRICS) {
+// 1) 온체인 (bitcoin-data.com)
+for (const [id, ep, field] of ONCHAIN) {
   try {
     const r = await fetch(`https://bitcoin-data.com/v1/${ep}/last`, {
       headers: { "User-Agent": "Mozilla/5.0", accept: "application/json" },
@@ -37,6 +37,32 @@ for (const [id, ep, field] of METRICS) {
   } catch (e) {
     console.error(`[onchain] ${id} 실패: ${e.message} — 기존값 유지`);
   }
+}
+
+// 2) M2 (FRED) — 미국 M2 통화량 YoY 증가율(%)
+const fredKey = process.env.FRED_API_KEY;
+if (fredKey) {
+  try {
+    const url = `https://api.stlouisfed.org/fred/series/observations?series_id=M2SL&api_key=${fredKey}&file_type=json&sort_order=desc&limit=14`;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const j = await r.json();
+    const obs = (j.observations || [])
+      .filter((o) => o.value !== ".")
+      .map((o) => ({ date: o.date, v: parseFloat(o.value) }));
+    // obs는 최신순(desc): obs[0]=이번달, obs[12]=12개월 전
+    if (obs.length >= 13 && obs[12].v) {
+      const yoy = ((obs[0].v - obs[12].v) / obs[12].v) * 100;
+      metrics.m2 = { value: Number(yoy.toFixed(2)), date: obs[0].date };
+      console.log(`[onchain] m2 (미국 M2 YoY) = ${metrics.m2.value}% (${obs[0].date})`);
+    } else {
+      throw new Error("관측치 부족");
+    }
+  } catch (e) {
+    console.error(`[onchain] m2 실패: ${e.message} — 기존값 유지`);
+  }
+} else {
+  console.log("[onchain] FRED_API_KEY 없음 — M2 건너뜀");
 }
 
 await mkdir(resolve(ROOT, "data"), { recursive: true });

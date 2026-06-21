@@ -24,6 +24,7 @@ jobs:
       - name: 데이터 수집 + 글 생성
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
         run: npm run daily
 
       - name: 결과 커밋
