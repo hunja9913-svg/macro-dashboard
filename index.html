@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>오늘의 매크로 — 한눈에 보는 지수 + 국면</title>
+<meta name="description" content="나스닥·S&P·코스피·환율·금리·DXY·VIX를 매일 자동 갱신. 당일/주간/월간 변화와 국면 해석, 그래프 제공." />
+<style>
+  :root{
+    --bg:#0b0e14; --panel:#141923; --panel2:#1b2230; --line:#262e3d;
+    --txt:#e6edf3; --sub:#8b97a7; --muted:#5c6675;
+    --green:#2ecc71; --red:#ff5c5c; --yellow:#ffcf4d; --blue:#4d9fff; --orange:#ff9d3d;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--txt);font-family:"Segoe UI","Malgun Gothic",sans-serif;line-height:1.5;padding:24px;max-width:1280px;margin:0 auto}
+  header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:8px}
+  h1{font-size:22px;font-weight:700}
+  .sub{color:var(--sub);font-size:13px}
+  .links a{color:var(--blue);font-size:13px;text-decoration:none;margin-left:14px}
+  .links a:hover{text-decoration:underline}
+  .periods{display:flex;gap:6px;margin:16px 0}
+  .periods button{background:var(--panel2);color:var(--sub);border:1px solid var(--line);border-radius:8px;padding:6px 14px;cursor:pointer;font-size:13px}
+  .periods button.on{border-color:var(--blue);color:var(--blue)}
+  .grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+  .card h2{font-size:14px;color:var(--sub);font-weight:600;margin-bottom:6px}
+  .price{font-size:26px;font-weight:700;line-height:1.1}
+  .deltas{display:flex;gap:14px;margin-top:6px;font-size:12px}
+  .deltas .d span{color:var(--muted);margin-right:3px}
+  .tag{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;margin-top:8px}
+  canvas{width:100%;height:auto;display:block;margin-top:10px}
+  .note{font-size:11px;color:var(--muted);margin-top:8px}
+  .pos{color:var(--green)} .neg{color:var(--red)} .neu{color:var(--yellow)}
+  .b-green{background:rgba(46,204,113,.15);color:var(--green)}
+  .b-red{background:rgba(255,92,92,.15);color:var(--red)}
+  .b-yellow{background:rgba(255,207,77,.15);color:var(--yellow)}
+  .b-orange{background:rgba(255,157,61,.15);color:var(--orange)}
+  .b-blue{background:rgba(77,159,255,.15);color:var(--blue)}
+  footer{margin-top:32px;font-size:11px;color:var(--muted);border-top:1px solid var(--line);padding-top:14px}
+  .loading{color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>📊 오늘의 매크로</h1>
+    <div class="sub" id="updated">불러오는 중…</div>
+  </div>
+  <div class="links">
+    <a href="btc.html">₿ 비트코인 대시보드</a>
+    <a href="posts/index.html">📝 시황 글 목록</a>
+  </div>
+</header>
+
+<div class="periods">
+  <button data-days="5">1주</button>
+  <button data-days="21">1개월</button>
+  <button data-days="63">3개월</button>
+  <button data-days="9999" class="on">1년</button>
+</div>
+
+<div class="grid" id="grid"><div class="loading">데이터 불러오는 중…</div></div>
+
+<footer>
+  데이터 출처: Yahoo Finance · 국면 판정·해석은 참고용이며 투자 조언이 아닙니다 · 매일 자동 갱신
+</footer>
+
+<script>
+const $ = (s, el=document) => el.querySelector(s);
+const fmt = n => Number(n).toLocaleString("en-US", { maximumFractionDigits: 2 });
+const ZONE_CLS = { // 국면 색상 (단어 일부 매칭)
+  "강세":"b-green","상승":"b-green","안도":"b-blue","완화":"b-green","약달러":"b-green","원화 강세":"b-green",
+  "보합":"b-yellow","중립":"b-yellow","정상":"b-yellow",
+  "하락":"b-orange","경계":"b-orange","긴축":"b-orange","강달러":"b-orange","원화 약세":"b-orange",
+  "급락":"b-red","공포":"b-red"
+};
+function zoneClass(zone){
+  for(const k in ZONE_CLS){ if(zone && zone.includes(k)) return ZONE_CLS[k]; }
+  return "b-yellow";
+}
+function deltaHtml(label, v){
+  if(v==null) return `<div class="d"><span>${label}</span>-</div>`;
+  const cls = v>0?"pos":v<0?"neg":"neu";
+  return `<div class="d"><span>${label}</span><b class="${cls}">${v>0?"+":""}${v}%</b></div>`;
+}
+
+let HISTORY = null;
+let curDays = 9999;
+
+function drawSpark(canvas, series){
+  const dpr = window.devicePixelRatio||1;
+  const W = canvas.clientWidth||280, H = 80;
+  canvas.width=W*dpr; canvas.height=H*dpr;
+  const ctx = canvas.getContext("2d"); ctx.scale(dpr,dpr); ctx.clearRect(0,0,W,H);
+  if(!series.length) return;
+  const data = series.map(p=>p.close);
+  const min=Math.min(...data), max=Math.max(...data), range=(max-min)||1;
+  const x=i=>4+(i/(data.length-1))*(W-8);
+  const y=v=>6+(1-(v-min)/range)*(H-12);
+  const up = data[data.length-1] >= data[0];
+  const col = up ? "#2ecc71" : "#ff5c5c";
+  ctx.beginPath();
+  data.forEach((v,i)=> i?ctx.lineTo(x(i),y(v)):ctx.moveTo(x(i),y(v)));
+  ctx.strokeStyle=col; ctx.lineWidth=1.6; ctx.stroke();
+  const g=ctx.createLinearGradient(0,6,0,H-6);
+  g.addColorStop(0,col+"33"); g.addColorStop(1,col+"00");
+  ctx.lineTo(x(data.length-1),H-6); ctx.lineTo(x(0),H-6); ctx.closePath();
+  ctx.fillStyle=g; ctx.fill();
+}
+
+function sliceSeries(series, days){
+  return days>=9999 ? series : series.slice(Math.max(0, series.length-days));
+}
+
+function renderCards(macro){
+  const grid = $("#grid");
+  grid.innerHTML = "";
+  for(const i of macro.indicators){
+    if(!i.ok) continue;
+    const card = document.createElement("div");
+    card.className = "card";
+    const unit = i.id==="ust10y" ? "%" : "";
+    card.innerHTML = `
+      <h2>${i.name}</h2>
+      <div class="price">${fmt(i.price)}${unit}</div>
+      <div class="deltas">
+        ${deltaHtml("당일", i.changePct)}
+        ${deltaHtml("주간", i.weekPct)}
+        ${deltaHtml("월간", i.monthPct)}
+      </div>
+      <span class="tag ${zoneClass(i.zone)}">${i.zone}</span>
+      <canvas data-id="${i.id}"></canvas>
+      <div class="note">${i.note||""}</div>`;
+    grid.appendChild(card);
+  }
+  redrawAll();
+}
+
+function redrawAll(){
+  if(!HISTORY) return;
+  document.querySelectorAll("canvas[data-id]").forEach(cv=>{
+    const h = HISTORY.indicators[cv.dataset.id];
+    if(h) drawSpark(cv, sliceSeries(h.series, curDays));
+  });
+}
+
+async function load(){
+  try{
+    const [macro, history] = await Promise.all([
+      fetch("data/macro.json").then(r=>r.json()),
+      fetch("data/history.json").then(r=>r.json()),
+    ]);
+    HISTORY = history;
+    $("#updated").textContent = "최근 갱신: " + new Date(macro.updated).toLocaleString("ko-KR",{timeZone:"Asia/Seoul"});
+    renderCards(macro);
+  }catch(e){
+    $("#grid").innerHTML = `<div class="loading">데이터를 불러오지 못했습니다. (로컬에서 열었다면 아래 안내 참고)<br><br>
+      <code>file://</code> 로 직접 열면 브라우저가 JSON 로딩을 막습니다.<br>
+      터미널에서 <b>npx serve</b> 실행 후 표시되는 주소로 여세요. GitHub Pages에 올리면 그냥 됩니다.</div>`;
+    console.error(e);
+  }
+}
+
+document.querySelectorAll(".periods button").forEach(b=>{
+  b.addEventListener("click", ()=>{
+    document.querySelectorAll(".periods button").forEach(x=>x.classList.remove("on"));
+    b.classList.add("on");
+    curDays = Number(b.dataset.days);
+    redrawAll();
+  });
+});
+window.addEventListener("resize", redrawAll);
+load();
+</script>
+</body>
+</html>

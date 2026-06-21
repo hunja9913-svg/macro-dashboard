@@ -1,0 +1,131 @@
+// 매크로 지수 수집 → data/macro.json (오늘 스냅샷) + data/history.json (시계열)
+// GitHub Actions(서버)에서 실행되므로 CORS 영향 없음. Node 20+ 전역 fetch 사용.
+// range=1y 일별 데이터를 받아 어제/주간/월간 변화와 그래프용 시계열을 한 번에 만든다.
+import { writeFile, mkdir } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+
+const INDICATORS = [
+  { id: "nasdaq", name: "나스닥 종합", symbol: "^IXIC", kind: "index" },
+  { id: "sp500", name: "S&P 500", symbol: "^GSPC", kind: "index" },
+  { id: "kospi", name: "코스피", symbol: "^KS11", kind: "index" },
+  { id: "usdkrw", name: "원/달러 환율", symbol: "KRW=X", kind: "usdkrw" },
+  { id: "ust10y", name: "미 국채 10년물 금리", symbol: "^TNX", kind: "yield" },
+  { id: "dxy", name: "달러인덱스(DXY)", symbol: "DX-Y.NYB", kind: "dxy" },
+  { id: "vix", name: "VIX 변동성지수", symbol: "^VIX", kind: "vix" },
+];
+
+// 지표별 "국면" 판정 — 단순 시세 나열과의 차별점.
+function classify(kind, price, changePct) {
+  switch (kind) {
+    case "index":
+      if (changePct >= 1.5) return { zone: "강세", note: "당일 강한 상승 — 위험선호 우세." };
+      if (changePct >= 0.2) return { zone: "상승", note: "완만한 상승 흐름." };
+      if (changePct > -0.2) return { zone: "보합", note: "방향성 약함, 관망." };
+      if (changePct > -1.5) return { zone: "하락", note: "조정 압력." };
+      return { zone: "급락", note: "당일 큰 하락 — 위험회피 심리." };
+    case "vix":
+      if (price < 15) return { zone: "안도(과열 경계)", note: "변동성 낮음 — 시장 안도, 과열 신호일 수 있음." };
+      if (price < 20) return { zone: "정상", note: "평균적 변동성." };
+      if (price < 30) return { zone: "불안 경계", note: "변동성 확대 — 경계 구간." };
+      return { zone: "공포", note: "높은 변동성 — 시장 공포 국면." };
+    case "yield":
+      if (price < 3.5) return { zone: "완화적", note: "낮은 금리 — 위험자산에 우호." };
+      if (price < 4.5) return { zone: "중립", note: "중간 수준 금리." };
+      return { zone: "긴축적", note: "높은 금리 — 유동성 긴축, 위험자산 역풍." };
+    case "dxy":
+      if (price < 100) return { zone: "약달러", note: "달러 약세 — 위험자산·신흥국에 우호." };
+      if (price < 105) return { zone: "중립", note: "달러 중립권." };
+      return { zone: "강달러", note: "달러 강세 — 위험자산에 역풍." };
+    case "usdkrw":
+      if (price < 1300) return { zone: "원화 강세", note: "환율 안정 — 외국인 수급 우호." };
+      if (price < 1400) return { zone: "중립", note: "평균적 환율 수준." };
+      return { zone: "원화 약세", note: "고환율 — 위험회피·자본유출 경계." };
+    default:
+      return { zone: "-", note: "" };
+  }
+}
+
+// 정렬된 시계열에서 n 거래일 전 대비 변화율(%)
+function pctOverDays(series, n) {
+  if (series.length < n + 1) return null;
+  const last = series[series.length - 1].close;
+  const past = series[series.length - 1 - n].close;
+  return past ? Number((((last - past) / past) * 100).toFixed(2)) : null;
+}
+
+async function fetchOne(ind) {
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(
+    ind.symbol
+  )}?interval=1d&range=1y`;
+  try {
+    const r = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" } });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const j = await r.json();
+    const result = j?.chart?.result?.[0];
+    const meta = result?.meta;
+    if (!meta) throw new Error("no meta");
+
+    // 일별 시계열 구성 (유효한 종가만)
+    const ts = result.timestamp ?? [];
+    const closesRaw = result.indicators?.quote?.[0]?.close ?? [];
+    const series = [];
+    for (let i = 0; i < ts.length; i++) {
+      const c = closesRaw[i];
+      if (typeof c === "number") {
+        series.push({ date: new Date(ts[i] * 1000).toISOString().slice(0, 10), close: Number(c.toFixed(2)) });
+      }
+    }
+    if (series.length < 2) throw new Error("series too short");
+
+    const price = Number((meta.regularMarketPrice ?? series.at(-1).close).toFixed(2));
+    const prev = series.at(-2).close;
+    const changePct = prev ? Number((((price - prev) / prev) * 100).toFixed(2)) : 0;
+    const weekPct = pctOverDays(series, 5); // 약 1주(거래일 5)
+    const monthPct = pctOverDays(series, 21); // 약 1개월(거래일 21)
+    const { zone, note } = classify(ind.kind, price, changePct);
+
+    return {
+      id: ind.id,
+      name: ind.name,
+      symbol: ind.symbol,
+      price,
+      changePct,
+      weekPct,
+      monthPct,
+      zone,
+      note,
+      series,
+      ok: true,
+    };
+  } catch (e) {
+    console.error(`[fetch] ${ind.id} 실패: ${e.message}`);
+    return { id: ind.id, name: ind.name, symbol: ind.symbol, ok: false, error: e.message };
+  }
+}
+
+const results = await Promise.all(INDICATORS.map(fetchOne));
+const updated = new Date().toISOString();
+
+// macro.json: 오늘 스냅샷 (시계열 제외 → 가벼움). 글 생성·요약용.
+const macro = {
+  updated,
+  indicators: results.map(({ series, ...rest }) => rest),
+};
+
+// history.json: 그래프용 시계열.
+const history = {
+  updated,
+  indicators: Object.fromEntries(
+    results.filter((r) => r.ok).map((r) => [r.id, { name: r.name, series: r.series }])
+  ),
+};
+
+await mkdir(resolve(ROOT, "data"), { recursive: true });
+await writeFile(resolve(ROOT, "data", "macro.json"), JSON.stringify(macro, null, 2), "utf8");
+await writeFile(resolve(ROOT, "data", "history.json"), JSON.stringify(history), "utf8");
+
+const okCount = results.filter((r) => r.ok).length;
+console.log(`[fetch] 완료: ${okCount}/${results.length} 지표, macro.json + history.json 저장`);
