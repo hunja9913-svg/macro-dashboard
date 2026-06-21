@@ -30,6 +30,25 @@ jobs:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
         run: npm run daily
 
+      - name: 오늘 날짜(KST)
+        id: d
+        run: echo "kst=$(TZ=Asia/Seoul date +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
+      - name: 네이버 복붙용 시황 이메일 발송
+        if: ${{ success() }}
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: "오늘의 매크로+비트코인 시황 (${{ steps.d.outputs.kst }})"
+          to: ${{ secrets.MAIL_TO }}
+          from: 매크로 자동봇 <${{ secrets.MAIL_USERNAME }}>
+          html_body: file://posts/latest-naver.html
+          attachments: posts/latest.png
+
       - name: 결과 커밋
         run: |
           git config user.name "github-actions[bot]"

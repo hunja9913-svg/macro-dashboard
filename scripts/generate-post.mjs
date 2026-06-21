@@ -217,6 +217,8 @@ ${naverBody}
 <p class="tip">위 안내 문구는 복사 전 지우거나, 복사 후 네이버에서 삭제하세요.</p>
 </body></html>`;
 await writeFile(resolve(ROOT, "posts", `${dateId}-naver.html`), naverHtml, "utf8");
+// 이메일 발송이 항상 같은 파일을 읽도록 고정 파일명 사본
+await writeFile(resolve(ROOT, "posts", "latest-naver.html"), naverHtml, "utf8");
 
 // 글 목록 매니페스트(posts.json) 갱신 → index.html 재생성
 const manifestPath = resolve(ROOT, "posts", "posts.json");

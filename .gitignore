@@ -1,2 +1,7 @@
 node_modules/
 .env
+
+# 네이버 복붙용 텍스트/HTML과 차트 이미지는 메일로만 전달(비공개) — 공개 사이트엔 안 올림
+posts/*-naver.html
+posts/*-naver.txt
+posts/*.png

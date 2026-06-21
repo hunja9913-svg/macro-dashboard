@@ -125,5 +125,7 @@ ctx.fillStyle = "#9aa0a6"; ctx.font = `12px ${FKR}`; ctx.textAlign = "left";
 ctx.fillText("출처: Yahoo Finance · Binance · bitcoin-data.com · FRED  |  정보 제공용, 투자 권유 아님", PAD, H - 18);
 
 await mkdir(resolve(ROOT, "posts"), { recursive: true });
-await writeFile(resolve(ROOT, "posts", `${dateId}.png`), cv.toBuffer("image/png"));
+const png = cv.toBuffer("image/png");
+await writeFile(resolve(ROOT, "posts", `${dateId}.png`), png);
+await writeFile(resolve(ROOT, "posts", "latest.png"), png); // 이메일 첨부용 고정 파일명
 console.log(`[image] posts/${dateId}.png 생성 (폰트 KR=${hasKR}, KRB=${hasKRB})`);
