@@ -26,15 +26,21 @@ const metrics = { ...(existing.metrics || {}) };
 // 1) 온체인 (bitcoin-data.com)
 for (const [id, ep, field, scale] of ONCHAIN) {
   try {
-    const r = await fetch(`https://bitcoin-data.com/v1/${ep}/last`, {
+    // 전체 시계열을 받아 최신값 + 전일 대비 변화율 계산 (요청 수는 /last와 동일).
+    const r = await fetch(`https://bitcoin-data.com/v1/${ep}`, {
       headers: { "User-Agent": "Mozilla/5.0", accept: "application/json" },
     });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const j = await r.json();
-    const v = j[field];
-    if (typeof v !== "number") throw new Error("값 없음");
-    metrics[id] = { value: Number((v * scale).toFixed(4)), date: j.d };
-    console.log(`[onchain] ${id} = ${metrics[id].value} (${j.d})`);
+    const arr = await r.json();
+    if (!Array.isArray(arr) || arr.length < 2) throw new Error("시계열 부족");
+    const last = arr[arr.length - 1];
+    const prev = arr[arr.length - 2];
+    if (typeof last[field] !== "number") throw new Error("값 없음");
+    const v = last[field] * scale;
+    const pv = prev[field] * scale;
+    const changePct = pv ? Number((((v - pv) / Math.abs(pv)) * 100).toFixed(2)) : null;
+    metrics[id] = { value: Number(v.toFixed(4)), changePct, date: last.d };
+    console.log(`[onchain] ${id} = ${metrics[id].value} (전일 ${changePct ?? "-"}%) ${last.d}`);
   } catch (e) {
     console.error(`[onchain] ${id} 실패: ${e.message} — 기존값 유지`);
   }

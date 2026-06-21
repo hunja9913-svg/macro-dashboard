@@ -117,9 +117,10 @@ if (btcData) {
   const r = [];
   if (btcData.btc)
     r.push(`<tr><td>비트코인 가격</td><td>$${fmtNum(btcData.btc.price)}</td><td>${btcData.btc.changePct >= 0 ? "+" : ""}${btcData.btc.changePct}%</td><td>-</td></tr>`);
-  if (m.mvrv) r.push(`<tr><td>MVRV Z-Score</td><td>${m.mvrv.value}</td><td>-</td><td>${zoneMvrv(m.mvrv.value)}</td></tr>`);
-  if (m.nupl) r.push(`<tr><td>NUPL</td><td>${m.nupl.value}%</td><td>-</td><td>${zoneNupl(m.nupl.value)}</td></tr>`);
-  if (m.puell) r.push(`<tr><td>Puell Multiple</td><td>${m.puell.value}</td><td>-</td><td>${zonePuell(m.puell.value)}</td></tr>`);
+  const chg = (v) => (v == null ? "-" : `${v >= 0 ? "+" : ""}${v}%`);
+  if (m.mvrv) r.push(`<tr><td>MVRV Z-Score</td><td>${m.mvrv.value}</td><td>${chg(m.mvrv.changePct)}</td><td>${zoneMvrv(m.mvrv.value)}</td></tr>`);
+  if (m.nupl) r.push(`<tr><td>NUPL</td><td>${m.nupl.value}%</td><td>${chg(m.nupl.changePct)}</td><td>${zoneNupl(m.nupl.value)}</td></tr>`);
+  if (m.puell) r.push(`<tr><td>Puell Multiple</td><td>${m.puell.value}</td><td>${chg(m.puell.changePct)}</td><td>${zonePuell(m.puell.value)}</td></tr>`);
   if (m.m2) r.push(`<tr><td>미국 M2 (YoY)</td><td>${m.m2.value}%</td><td>-</td><td>${zoneM2(m.m2.value)}</td></tr>`);
   if (r.length)
     btcRows = `<tr><td colspan="4" style="background:#eef2f7;font-weight:600">₿ 비트코인 · 온체인</td></tr>` + r.join("");

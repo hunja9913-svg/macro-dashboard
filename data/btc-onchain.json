@@ -1,5 +1,5 @@
 {
-  "updated": "2026-06-21T17:33:03.575Z",
+  "updated": "2026-06-21T17:41:23.191Z",
   "metrics": {
     "mvrv": {
       "value": 0.3536,
@@ -19,7 +19,7 @@
     }
   },
   "btc": {
-    "price": 64082,
-    "changePct": 0.12
+    "price": 64080,
+    "changePct": 0.37
   }
 }
