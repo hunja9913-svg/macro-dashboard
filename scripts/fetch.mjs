@@ -11,6 +11,8 @@ const INDICATORS = [
   { id: "nasdaq", name: "나스닥 종합", symbol: "^IXIC", kind: "index" },
   { id: "sp500", name: "S&P 500", symbol: "^GSPC", kind: "index" },
   { id: "kospi", name: "코스피", symbol: "^KS11", kind: "index" },
+  // 코스피200 선물(최근월물). Yahoo엔 무료 선물 심볼이 없어 네이버 금융 API 사용.
+  { id: "kospi200f", name: "코스피200 선물", symbol: "FUT", kind: "index", source: "naver-futures" },
   { id: "usdkrw", name: "원/달러 환율", symbol: "KRW=X", kind: "usdkrw" },
   { id: "ust10y", name: "미 국채 10년물 금리", symbol: "^TNX", kind: "yield" },
   { id: "dxy", name: "달러인덱스(DXY)", symbol: "DX-Y.NYB", kind: "dxy" },
@@ -106,7 +108,66 @@ async function fetchOne(ind) {
   }
 }
 
-const results = await Promise.all(INDICATORS.map(fetchOne));
+// 네이버 금융 코스피200 선물(최근월물) — 일별 종가 시계열.
+// 엔드포인트: m.stock.naver.com/api/index/FUT/price (최신→과거 순, 숫자는 콤마 포함 문자열).
+// pageSize=60이 안정적(그 이상은 빈 응답), page로 페이징해 ~1년치 확보.
+async function fetchNaverFutures(ind) {
+  try {
+    const num = (s) => Number(String(s).replace(/,/g, ""));
+    const raw = [];
+    for (let page = 1; page <= 5; page++) {
+      const url = `https://m.stock.naver.com/api/index/${encodeURIComponent(
+        ind.symbol
+      )}/price?pageSize=60&page=${page}`;
+      const r = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" } });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const arr = await r.json();
+      if (!Array.isArray(arr) || arr.length === 0) break; // 더 이상 데이터 없음
+      raw.push(...arr);
+    }
+
+    // 과거→최신으로 뒤집고, 날짜 기준 중복 제거(페이지 경계 대비).
+    const byDate = new Map();
+    for (const d of raw) {
+      const close = num(d.closePrice);
+      if (d.localTradedAt && Number.isFinite(close)) {
+        byDate.set(d.localTradedAt, Number(close.toFixed(2)));
+      }
+    }
+    const series = [...byDate.entries()]
+      .map(([date, close]) => ({ date, close }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+    if (series.length < 2) throw new Error("series too short");
+
+    const price = series.at(-1).close;
+    const prev = series.at(-2).close;
+    const changePct = prev ? Number((((price - prev) / prev) * 100).toFixed(2)) : 0;
+    const weekPct = pctOverDays(series, 5);
+    const monthPct = pctOverDays(series, 21);
+    const { zone, note } = classify(ind.kind, price, changePct);
+
+    return {
+      id: ind.id,
+      name: ind.name,
+      symbol: ind.symbol,
+      price,
+      changePct,
+      weekPct,
+      monthPct,
+      zone,
+      note,
+      series,
+      ok: true,
+    };
+  } catch (e) {
+    console.error(`[fetch] ${ind.id} 실패: ${e.message}`);
+    return { id: ind.id, name: ind.name, symbol: ind.symbol, ok: false, error: e.message };
+  }
+}
+
+const results = await Promise.all(
+  INDICATORS.map((ind) => (ind.source === "naver-futures" ? fetchNaverFutures(ind) : fetchOne(ind)))
+);
 const updated = new Date().toISOString();
 
 // macro.json: 오늘 스냅샷 (시계열 제외 → 가벼움). 글 생성·요약용.
