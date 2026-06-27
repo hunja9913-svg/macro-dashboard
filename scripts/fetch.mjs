@@ -82,11 +82,28 @@ async function fetchOne(ind) {
     }
     if (series.length < 2) throw new Error("series too short");
 
-    const price = Number((meta.regularMarketPrice ?? series.at(-1).close).toFixed(2));
-    const prev = series.at(-2).close;
+    // regularMarketPrice가 가장 최신 종가지만, 장 마감 직후엔 Yahoo 일별 시계열(series)이
+    // 아직 그 거래일을 반영 못 하는 경우가 있다. 그때 prev=series.at(-2)로 잡으면 하루를
+    // 건너뛴 잘못된 등락이 나온다(코스피 -0.7% vs 실제 -5.8% 버그). → regularMarketPrice를
+    // 최신점으로 정규화(시계열에 없으면 추가, 당일이면 갱신)한 뒤 마지막 두 점으로 계산.
+    const s = series.slice();
+    const rmp = meta.regularMarketPrice;
+    if (typeof rmp === "number") {
+      const fresh = {
+        date: meta.regularMarketTime
+          ? new Date(meta.regularMarketTime * 1000).toISOString().slice(0, 10)
+          : s.at(-1).date,
+        close: Number(rmp.toFixed(2)),
+      };
+      if (fresh.date > s.at(-1).date) s.push(fresh);
+      else if (Math.round(fresh.close * 100) !== Math.round(s.at(-1).close * 100)) s[s.length - 1] = fresh;
+    }
+
+    const price = s.at(-1).close;
+    const prev = s.at(-2).close;
     const changePct = prev ? Number((((price - prev) / prev) * 100).toFixed(2)) : 0;
-    const weekPct = pctOverDays(series, 5); // 약 1주(거래일 5)
-    const monthPct = pctOverDays(series, 21); // 약 1개월(거래일 21)
+    const weekPct = pctOverDays(s, 5); // 약 1주(거래일 5)
+    const monthPct = pctOverDays(s, 21); // 약 1개월(거래일 21)
     const { zone, note } = classify(ind.kind, price, changePct);
 
     return {
@@ -99,7 +116,7 @@ async function fetchOne(ind) {
       monthPct,
       zone,
       note,
-      series,
+      series: s,
       ok: true,
     };
   } catch (e) {
