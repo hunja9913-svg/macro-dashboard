@@ -73,20 +73,49 @@ if (fredKey) {
   console.log("[onchain] FRED_API_KEY 없음 — M2 건너뜀");
 }
 
-// 3) BTC 가격 (Binance, 키 불필요·한도 없음)
+// 3) BTC 가격 (키 불필요)
+// ⚠️ GitHub 러너는 미국 IP라 Binance(api.binance.com)가 451로 지역차단된다.
+// 그래서 Binance(로컬·KR에서 동작) → Coinbase(미국 IP에서도 동작) 순으로 폴백.
+// (브라우저 btc.html은 한국 IP라 Binance 라이브가 정상 — 거긴 그대로 둔다.)
 let btc = existing.btc || null;
-try {
-  const r = await fetch("https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT");
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  const j = await r.json();
-  btc = {
-    price: Math.round(parseFloat(j.lastPrice)),
-    changePct: Number(parseFloat(j.priceChangePercent).toFixed(2)),
-  };
-  console.log(`[onchain] BTC = $${btc.price} (24h ${btc.changePct}%)`);
-} catch (e) {
-  console.error(`[onchain] BTC 가격 실패: ${e.message} — 기존값 유지`);
+const priceSources = [
+  {
+    name: "Binance",
+    url: "https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT",
+    parse: (j) => ({
+      price: Math.round(parseFloat(j.lastPrice)),
+      changePct: Number(parseFloat(j.priceChangePercent).toFixed(2)),
+    }),
+  },
+  {
+    name: "Coinbase",
+    url: "https://api.exchange.coinbase.com/products/BTC-USD/stats",
+    parse: (j) => {
+      const last = parseFloat(j.last);
+      const open = parseFloat(j.open); // 24시간 롤링 시가
+      return {
+        price: Math.round(last),
+        changePct: open ? Number((((last - open) / open) * 100).toFixed(2)) : 0,
+      };
+    },
+  },
+];
+let btcOk = false;
+for (const src of priceSources) {
+  try {
+    const r = await fetch(src.url, { headers: { "User-Agent": "Mozilla/5.0" } });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const parsed = src.parse(await r.json());
+    if (!Number.isFinite(parsed.price) || parsed.price <= 0) throw new Error("가격 파싱 실패");
+    btc = parsed;
+    btcOk = true;
+    console.log(`[onchain] BTC = $${btc.price} (24h ${btc.changePct}%) via ${src.name}`);
+    break;
+  } catch (e) {
+    console.error(`[onchain] BTC 가격 ${src.name} 실패: ${e.message}`);
+  }
 }
+if (!btcOk) console.error("[onchain] BTC 가격 전체 소스 실패 — 기존값 유지");
 
 await mkdir(resolve(ROOT, "data"), { recursive: true });
 await writeFile(OUT, JSON.stringify({ updated: new Date().toISOString(), metrics, btc }, null, 2), "utf8");
