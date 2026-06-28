@@ -1,5 +1,5 @@
 {
-  "updated": "2026-06-27T01:36:48.185Z",
+  "updated": "2026-06-28T12:12:42.264Z",
   "indicators": [
     {
       "id": "nasdaq",
@@ -66,9 +66,9 @@
       "name": "미 국채 10년물 금리",
       "symbol": "^TNX",
       "price": 4.37,
-      "changePct": -1.8,
-      "weekPct": -2.67,
-      "monthPct": -4.38,
+      "changePct": -0.46,
+      "weekPct": -1.8,
+      "monthPct": -2.46,
       "zone": "중립",
       "note": "중간 수준 금리.",
       "ok": true
@@ -95,6 +95,30 @@
       "monthPct": 13.01,
       "zone": "정상",
       "note": "평균적 변동성.",
+      "ok": true
+    },
+    {
+      "id": "wti",
+      "name": "국제유가(WTI)",
+      "symbol": "CL=F",
+      "price": 69.23,
+      "changePct": -3.74,
+      "weekPct": -9.62,
+      "monthPct": -21.93,
+      "zone": "중립",
+      "note": "평균적 유가 수준.",
+      "ok": true
+    },
+    {
+      "id": "gold",
+      "name": "금(Gold)",
+      "symbol": "GC=F",
+      "price": 4096.3,
+      "changePct": 1.63,
+      "weekPct": -3.03,
+      "monthPct": -7.9,
+      "zone": "급등",
+      "note": "금 강세 — 안전자산 선호·인플레/약달러 헤지 수요.",
       "ok": true
     }
   ]
