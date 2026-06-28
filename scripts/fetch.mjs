@@ -17,6 +17,7 @@ const INDICATORS = [
   { id: "ust10y", name: "미 국채 10년물 금리", symbol: "^TNX", kind: "yield" },
   { id: "dxy", name: "달러인덱스(DXY)", symbol: "DX-Y.NYB", kind: "dxy" },
   { id: "vix", name: "VIX 변동성지수", symbol: "^VIX", kind: "vix" },
+  { id: "wti", name: "국제유가(WTI)", symbol: "CL=F", kind: "oil" },
 ];
 
 // 지표별 "국면" 판정 — 단순 시세 나열과의 차별점.
@@ -45,6 +46,11 @@ function classify(kind, price, changePct) {
       if (price < 1300) return { zone: "원화 강세", note: "환율 안정 — 외국인 수급 우호." };
       if (price < 1400) return { zone: "중립", note: "평균적 환율 수준." };
       return { zone: "원화 약세", note: "고환율 — 위험회피·자본유출 경계." };
+    case "oil":
+      if (price < 60) return { zone: "저유가", note: "낮은 유가 — 인플레 완화 우호, 수요 둔화 신호일 수도." };
+      if (price < 80) return { zone: "중립", note: "평균적 유가 수준." };
+      if (price < 100) return { zone: "고유가", note: "유가 상승 — 인플레·비용 압력." };
+      return { zone: "급등", note: "고유가 — 강한 인플레 압력·경기 부담." };
     default:
       return { zone: "-", note: "" };
   }
