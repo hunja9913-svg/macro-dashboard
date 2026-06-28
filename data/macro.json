@@ -1,5 +1,5 @@
 {
-  "updated": "2026-06-27T01:17:50.309Z",
+  "updated": "2026-06-27T01:36:48.185Z",
   "indicators": [
     {
       "id": "nasdaq",
@@ -30,11 +30,11 @@
       "name": "코스피",
       "symbol": "^KS11",
       "price": 8411.21,
-      "changePct": -0.71,
-      "weekPct": -1.47,
-      "monthPct": 10.97,
-      "zone": "하락",
-      "note": "조정 압력.",
+      "changePct": -5.81,
+      "weekPct": -7.08,
+      "monthPct": 2.22,
+      "zone": "급락",
+      "note": "당일 큰 하락 — 위험회피 심리.",
       "ok": true
     },
     {
