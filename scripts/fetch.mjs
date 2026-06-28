@@ -18,6 +18,7 @@ const INDICATORS = [
   { id: "dxy", name: "달러인덱스(DXY)", symbol: "DX-Y.NYB", kind: "dxy" },
   { id: "vix", name: "VIX 변동성지수", symbol: "^VIX", kind: "vix" },
   { id: "wti", name: "국제유가(WTI)", symbol: "CL=F", kind: "oil" },
+  { id: "gold", name: "금(Gold)", symbol: "GC=F", kind: "gold" },
 ];
 
 // 지표별 "국면" 판정 — 단순 시세 나열과의 차별점.
@@ -51,6 +52,13 @@ function classify(kind, price, changePct) {
       if (price < 80) return { zone: "중립", note: "평균적 유가 수준." };
       if (price < 100) return { zone: "고유가", note: "유가 상승 — 인플레·비용 압력." };
       return { zone: "급등", note: "고유가 — 강한 인플레 압력·경기 부담." };
+    case "gold":
+      // 금은 절대 임계값이 시기마다 달라 당일등락 기준(안전자산 관점)으로 판정.
+      if (changePct >= 1.5) return { zone: "급등", note: "금 강세 — 안전자산 선호·인플레/약달러 헤지 수요." };
+      if (changePct >= 0.2) return { zone: "상승", note: "완만한 상승 — 안전자산 수요." };
+      if (changePct > -0.2) return { zone: "보합", note: "방향성 약함." };
+      if (changePct > -1.5) return { zone: "하락", note: "조정 — 위험선호 회복 또는 강달러." };
+      return { zone: "급락", note: "금 약세 — 위험선호·강달러 압력." };
     default:
       return { zone: "-", note: "" };
   }
